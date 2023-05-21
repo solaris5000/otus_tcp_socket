@@ -7,7 +7,7 @@ use std::{io::{Read, Write}, vec};
 pub mod client;
 pub mod server;
 
-fn send_command<Writer : Write>(data: [u8; 4], mut writer : Writer) -> bool {
+pub fn send_command<Writer : Write>(data: [u8; 4], mut writer : Writer) -> bool {
     match writer.write_all(&data) {
         Err(e) => {println!("{e}"); return false;},
         Ok(_) => {println!("Command sended")},
@@ -15,7 +15,7 @@ fn send_command<Writer : Write>(data: [u8; 4], mut writer : Writer) -> bool {
     true
 }
 
-fn read_command<Reader : Read>(mut reader : Reader) -> String {
+pub fn read_command<Reader : Read>(mut reader : Reader) -> String {
     let mut buf : Vec<u8> = vec!(0);
     match reader.read_exact(&mut buf) {
         Ok(_) => {return String::from_utf8(buf).unwrap_or("Encoding error. Use UTF-8.".to_owned())},

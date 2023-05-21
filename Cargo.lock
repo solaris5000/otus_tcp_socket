@@ -5,6 +5,9 @@ version = 3
 [[package]]
 name = "client"
 version = "0.1.0"
+dependencies = [
+ "sdtp",
+]
 
 [[package]]
 name = "sdtp"
@@ -13,3 +16,6 @@ version = "0.1.0"
 [[package]]
 name = "socket"
 version = "0.1.0"
+dependencies = [
+ "sdtp",
+]
