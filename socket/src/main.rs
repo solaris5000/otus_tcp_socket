@@ -51,17 +51,16 @@ impl Socket {
             None => {panic!("there is no tcp server")},
             Some(ss) => {
                 ss.tcp.incoming().map(|s| match s {
-                    Ok(s) => {println!("somdng"); Self::scan_data(s)},
+                    Ok(s) => {println!("Some command has been given"); s},
                     Err(e) => panic!("err"),
                 })
             }
         }
     }
 
-    fn scan_data(mut stream : TcpStream) -> TcpStream {
+    fn scan_data(mut stream : TcpStream) {
         let buf = sdtp::read_command(&mut stream);
         println!("{}", buf);
-        stream
     }
     
 
@@ -89,10 +88,9 @@ impl Socket {
 fn main() {
     let a = Socket::new("MySocket");
     println!("{}", a);
-    loop {
-        a.listen();
-        
+    let mut stream = a.listen();
+    
+    for msg in stream {
+        Socket::scan_data(msg);
     }
-    
-    
 }
