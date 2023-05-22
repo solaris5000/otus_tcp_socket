@@ -1,4 +1,5 @@
 use std::net::{TcpListener, ToSocketAddrs, TcpStream};
+use std::{io::{Write}};
 
 pub struct SocketServer {
     pub tcp : TcpListener,
