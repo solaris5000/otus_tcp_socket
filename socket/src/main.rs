@@ -60,7 +60,11 @@ impl Socket {
                         "powr" => {
                             dbg!(self.power.to_be_bytes());
                             sdtp::send_command(b"F32D".to_owned(), &mut s);
-                            sdtp::send_command(self.power.to_be_bytes(), &mut s);
+                            if self.enabled {
+                                sdtp::send_command(self.power.to_be_bytes(), &mut s);
+                            } else {
+                                sdtp::send_command(0f32.to_be_bytes(), &mut s); 
+                            }
                         }
                         "stat" => {
                             sdtp::send_command(
