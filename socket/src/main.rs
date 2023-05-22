@@ -1,6 +1,6 @@
-use std::{net::{TcpListener, TcpStream}, io::Read};
+use std::{net::{TcpStream}};
 
-use sdtp::server::{self, SocketServer};
+use sdtp::server::{SocketServer};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -11,8 +11,8 @@ pub struct Socket {
     pub amperage: f32,
     pub power: f32,
     pub enabled: bool,
-    pub address : String,
-    pub tcp : Option<SocketServer>
+    pub address: String,
+    pub tcp: Option<SocketServer>,
 }
 
 impl std::fmt::Display for Socket {
@@ -41,49 +41,58 @@ impl Socket {
             amperage: (0.0),
             power: (12.5),
             enabled: (false),
-            address : "127.0.0.1:10001".to_owned(),
-            tcp : Some(SocketServer::StartServer("127.0.0.1:10001")),
+            address: "127.0.0.1:10001".to_owned(),
+            tcp: Some(SocketServer::start_server("127.0.0.1:10001")),
         }
     }
 
     pub fn listen(&mut self) -> impl Iterator<Item = TcpStream> + '_ {
         match &self.tcp {
-            None => {panic!("there is no tcp server")},
-            Some(ss) => {
-                ss.tcp.incoming().map(|s| match s {
-                    Ok(mut s) => {
-                        println!("Some command has been given"); 
-                        let buf = sdtp::read_command(&mut s);
-                        println!("CMD: {}", &buf);
-                        match &buf[..] {
-                            "powr" => {
-                                dbg!(self.power.to_be_bytes());
-                                sdtp::send_command(b"F32D".to_owned(), &mut s); 
-                                sdtp::send_command(self.power.to_be_bytes(), &mut s);
-                            },
-                            "stat" => {
-                                sdtp::send_command(if self.enabled {b"ebld".to_owned()} else {b"dbld".to_owned()}, &mut s);
-                            },
-                            "enbl" => {
-                                self.enabled = true; 
-                                self.enabled = true; sdtp::send_command(b"enbl".to_owned(), &mut s);
-                            },
-                            "dsbl" => {
-                                self.enabled = false; sdtp::send_command(b"dsbl".to_owned(), &mut s);
-                            },
-                            _ => {
-                                sdtp::send_command(b"E_WC".to_owned(), &mut s);
-                            },
-                        }
-                        sdtp::send_command(b"R_OK".to_owned(), &mut s);
-                        s
-                },
-                    Err(e) => panic!("err"),
-                })
+            None => {
+                panic!("there is no tcp server")
             }
+            Some(ss) => ss.tcp.incoming().map(|s| match s {
+                Ok(mut s) => {
+                    println!("Some command has been given");
+                    let buf = sdtp::read_command(&mut s);
+                    println!("CMD: {}", &buf);
+                    match &buf[..] {
+                        "powr" => {
+                            dbg!(self.power.to_be_bytes());
+                            sdtp::send_command(b"F32D".to_owned(), &mut s);
+                            sdtp::send_command(self.power.to_be_bytes(), &mut s);
+                        }
+                        "stat" => {
+                            sdtp::send_command(
+                                if self.enabled {
+                                    b"ebld".to_owned()
+                                } else {
+                                    b"dbld".to_owned()
+                                },
+                                &mut s,
+                            );
+                        }
+                        "enbl" => {
+                            self.enabled = true;
+                            self.enabled = true;
+                            sdtp::send_command(b"enbl".to_owned(), &mut s);
+                        }
+                        "dsbl" => {
+                            self.enabled = false;
+                            sdtp::send_command(b"dsbl".to_owned(), &mut s);
+                        }
+                        _ => {
+                            sdtp::send_command(b"E_WC".to_owned(), &mut s);
+                        }
+                    }
+                    sdtp::send_command(b"R_OK".to_owned(), &mut s);
+                    s
+                }
+                Err(e) => panic!("err {:?}", e),
+            }),
         }
     }
-/* 
+    /*
     fn scan_command(&mut self, mut stream : TcpStream) -> TcpStream {
         let buf = sdtp::read_command(&mut stream);
         println!("CMD: {}", &buf);
@@ -125,9 +134,9 @@ impl Socket {
 fn main() {
     let mut a = Socket::new("MySocket");
     println!("{}", a);
-    let mut stream = a.listen();
-    
-    for msg in stream {
+    let stream = a.listen();
+
+    for _msg in stream {
         println!("doin soming");
     }
 }
