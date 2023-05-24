@@ -1,4 +1,4 @@
-use sdtp::{client::read_responce};
+use sdtp::client::read_responce;
 use std::{io::*, net::TcpStream};
 
 fn main() {

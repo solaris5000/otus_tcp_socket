@@ -1,6 +1,6 @@
-use std::{net::{TcpStream}};
+use std::net::TcpStream;
 
-use sdtp::server::{SocketServer};
+use sdtp::server::SocketServer;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -15,15 +15,17 @@ pub struct Socket {
 }
 
 pub struct TcpSocket {
-    pub socket : Socket,
-    pub tcp : Option<SocketServer>,
+    pub socket: Socket,
+    pub tcp: Option<SocketServer>,
 }
-
+#[allow(clippy::new_without_default)]
 impl TcpSocket {
-    pub fn new() -> TcpSocket{
-        TcpSocket { socket: (Socket::new("MySocket")), tcp: (Some( SocketServer::start_server("127.0.0.1:10001") )) }
+    pub fn new() -> TcpSocket {
+        TcpSocket {
+            socket: (Socket::new("MySocket")),
+            tcp: (Some(SocketServer::start_server("127.0.0.1:10001"))),
+        }
     }
-
 
     pub fn listen(&mut self) -> impl Iterator<Item = TcpStream> + '_ {
         match &self.tcp {
@@ -33,7 +35,7 @@ impl TcpSocket {
             Some(ss) => ss.tcp.incoming().map(|s| match s {
                 Ok(mut s) => {
                     println!("Some command has been given");
-                    
+
                     TcpSocket::scan_command(&mut self.socket, &mut s);
 
                     s
@@ -43,36 +45,43 @@ impl TcpSocket {
         }
     }
 
-    fn scan_command(socket : &mut Socket, mut stream : &mut TcpStream) {
+    fn scan_command(socket: &mut Socket, mut stream: &mut TcpStream) {
         let buf = sdtp::read_command(&mut stream);
         println!("CMD: {}", &buf);
-       match &buf[..] {
+        match &buf[..] {
             "powr" => {
                 sdtp::send_command(b"F32D".to_owned(), &mut stream);
-                            if socket.enabled {
-                                sdtp::send_command(socket.power.to_be_bytes(), &mut stream);
-                            } else {
-                                sdtp::send_command(0f32.to_be_bytes(), &mut stream); 
-                            }
-            },
+                if socket.enabled {
+                    sdtp::send_command(socket.power.to_be_bytes(), &mut stream);
+                } else {
+                    sdtp::send_command(0f32.to_be_bytes(), &mut stream);
+                }
+            }
             "stat" => {
-                sdtp::send_command(if socket.enabled {b"ebld".to_owned()} else {b"dbld".to_owned()}, &mut stream);
-            },
+                sdtp::send_command(
+                    if socket.enabled {
+                        b"ebld".to_owned()
+                    } else {
+                        b"dbld".to_owned()
+                    },
+                    &mut stream,
+                );
+            }
             "enbl" => {
-                socket.enabled = true; sdtp::send_command(b"enbl".to_owned(), &mut stream);
-            },
+                socket.enabled = true;
+                sdtp::send_command(b"enbl".to_owned(), &mut stream);
+            }
             "dsbl" => {
-                socket.enabled = false; sdtp::send_command(b"dsbl".to_owned(), &mut stream);
-            },
+                socket.enabled = false;
+                sdtp::send_command(b"dsbl".to_owned(), &mut stream);
+            }
             _ => {
                 sdtp::send_command(b"E_WC".to_owned(), &mut stream);
-            },
+            }
         }
         sdtp::send_command(b"R_OK".to_owned(), &mut stream);
     }
-
 }
-
 
 impl std::fmt::Display for Socket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -101,7 +110,7 @@ impl Socket {
             power: (12.5),
             enabled: (false),
             address: "127.0.0.1:10001".to_owned(),
-          //  tcp: Some(SocketServer::start_server("127.0.0.1:10001")),
+            //  tcp: Some(SocketServer::start_server("127.0.0.1:10001")),
         }
     }
     pub fn _init(&mut self) {
@@ -127,7 +136,6 @@ impl Socket {
 
 fn main() {
     let mut sa = TcpSocket::new();
-
 
     println!("{}", &sa.socket);
 
