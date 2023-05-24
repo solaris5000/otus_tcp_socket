@@ -29,27 +29,13 @@ pub fn read_responce<Reader: Read>(mut reader: Reader) -> String {
         format!("Current power is: {}", responce.1)
     } else {
         match &responce.1[..] {
-            "enbl" => {
-                "Socket enabled".to_string()
-            }
-            "dsbl" => {
-                "Socket disabled".to_string()
-            }
-            "ebld" => {
-                "Current state: Enabled".to_string()
-            }
-            "dbld" => {
-                "Current state: Disabled".to_string()
-            }
-            "E_WC" => {
-                "Error: Wrong command".to_string()
-            }
-            "IORE" => {
-                "Error: some I/O error".to_string()
-            }
-            _ => {
-                "Something went wrong while reading responce".to_string()
-            }
+            "enbl" => "Socket enabled".to_string(),
+            "dsbl" => "Socket disabled".to_string(),
+            "ebld" => "Current state: Enabled".to_string(),
+            "dbld" => "Current state: Disabled".to_string(),
+            "E_WC" => "Error: Wrong command".to_string(),
+            "IORE" => "Error: some I/O error".to_string(),
+            _ => "Something went wrong while reading responce".to_string(),
         }
     }
 }
