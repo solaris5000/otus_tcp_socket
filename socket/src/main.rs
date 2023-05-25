@@ -1,6 +1,7 @@
-use std::net::TcpStream;
-
 use sdtp::server::SocketServer;
+use std::sync::RwLock;
+use std::thread;
+use std::{net::TcpStream, sync::Arc};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -15,14 +16,12 @@ pub struct Socket {
 }
 
 pub struct TcpSocket {
-    pub socket: Socket,
     pub tcp: Option<SocketServer>,
 }
 #[allow(clippy::new_without_default)]
 impl TcpSocket {
     pub fn new() -> TcpSocket {
         TcpSocket {
-            socket: (Socket::new("MySocket")),
             tcp: (Some(SocketServer::start_server("127.0.0.1:10001"))),
         }
     }
@@ -33,11 +32,8 @@ impl TcpSocket {
                 panic!("there is no tcp server")
             }
             Some(ss) => ss.tcp.incoming().map(|s| match s {
-                Ok(mut s) => {
+                Ok(s) => {
                     println!("Some command has been given");
-
-                    TcpSocket::scan_command(&mut self.socket, &mut s);
-
                     s
                 }
                 Err(e) => panic!("err {:?}", e),
@@ -45,11 +41,13 @@ impl TcpSocket {
         }
     }
 
-    fn scan_command(socket: &mut Socket, mut stream: &mut TcpStream) {
+    fn scan_command(guard: Arc<RwLock<Socket>>, mut stream: &mut TcpStream) {
+        let socket = guard.as_ref();
         let buf = sdtp::read_command(&mut stream);
         println!("CMD: {}", &buf);
         match &buf[..] {
             "powr" => {
+                let socket = socket.read().unwrap();
                 sdtp::send_command(b"F32D".to_owned(), &mut stream);
                 if socket.enabled {
                     sdtp::send_command(socket.power.to_be_bytes(), &mut stream);
@@ -58,6 +56,7 @@ impl TcpSocket {
                 }
             }
             "stat" => {
+                let socket = socket.read().unwrap();
                 sdtp::send_command(
                     if socket.enabled {
                         b"ebld".to_owned()
@@ -68,10 +67,12 @@ impl TcpSocket {
                 );
             }
             "enbl" => {
+                let mut socket = socket.write().unwrap();
                 socket.enabled = true;
                 sdtp::send_command(b"enbl".to_owned(), &mut stream);
             }
             "dsbl" => {
+                let mut socket = socket.write().unwrap();
                 socket.enabled = false;
                 sdtp::send_command(b"dsbl".to_owned(), &mut stream);
             }
@@ -117,6 +118,14 @@ impl Socket {
         todo!();
     }
 
+    pub fn on(&mut self) {
+        self.enabled = true;
+    }
+
+    pub fn off(&mut self) {
+        self.enabled = false;
+    }
+
     pub fn _scan_power(&mut self) {
         todo!();
     }
@@ -137,11 +146,17 @@ impl Socket {
 fn main() {
     let mut sa = TcpSocket::new();
 
-    println!("{}", &sa.socket);
+    let a = Socket::new("MySocket");
+    let arcs = Arc::new(RwLock::new(a));
+    println!("{}", arcs.read().unwrap());
 
     let stream = sa.listen();
 
-    for _msg in stream {
-        println!("doin soming");
+    for mut msg in stream {
+        let acc = arcs.clone();
+        thread::spawn(move || {
+            TcpSocket::scan_command(acc, &mut msg);
+            println!("doin soming");
+        });
     }
 }
