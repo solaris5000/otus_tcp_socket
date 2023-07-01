@@ -15,6 +15,11 @@ pub struct Socket {
     pub address: String,
 }
 
+pub enum ConnectionState {
+    CsConnected,
+    CsDisconnected
+}
+
 pub struct TcpSocket {
     pub tcp: SocketServer,
 }
@@ -38,22 +43,28 @@ impl TcpSocket {
         self.tcp.tcp.accept().await
     }
 
-    pub async fn process_connection(
-        connection: (tokio::net::TcpStream, std::net::SocketAddr),
-        guard: Arc<RwLock<Socket>>,
-    ) {
-        let mut stream = connection.0;
-        let peer = connection.1;
-        println!("Connected {}", &peer);
-
-        Self::scan_command(guard, &mut stream).await;
+    pub async fn process_connection(connection: TcpStream, guard: Arc<RwLock<Socket>>) {
+        let mut stream = connection;
+        loop {
+            let loopguard = guard.clone();
+            match Self::scan_command(loopguard, &mut stream).await {
+                ConnectionState::CsConnected => {},
+                ConnectionState::CsDisconnected => {break;}
+            }
+        }
     }
 
-    async fn scan_command(guard: Arc<RwLock<Socket>>, stream: &mut TcpStream) {
+    async fn scan_command(guard: Arc<RwLock<Socket>>, stream: &mut TcpStream) -> ConnectionState {
         let socket = guard.as_ref();
 
         let buf = sdtp::read_command(stream).await;
+        match buf {
+            Some(_) => {},
+            None => {return ConnectionState::CsDisconnected;}
+        }
+        let buf = &buf.unwrap();
         println!("CMD: {}", &buf);
+
         match &buf[..] {
             "powr" => {
                 let socket = socket.read().await;
@@ -63,26 +74,27 @@ impl TcpSocket {
                 } else {
                     sdtp::send_command(&0f32.to_be_bytes(), stream).await;
                 }
-            }
+            },
             "stat" => {
                 let socket = socket.read().await;
                 sdtp::send_command(if socket.enabled { b"ebld" } else { b"dbld" }, stream).await;
-            }
+            },
             "enbl" => {
                 let mut socket = socket.write().await;
                 socket.enabled = true;
                 sdtp::send_command(b"enbl", stream).await;
-            }
+            },
             "dsbl" => {
                 let mut socket = socket.write().await;
                 socket.enabled = false;
                 sdtp::send_command(b"dsbl", stream).await;
-            }
+            },
+            "placeholder" => {},
             _ => {
                 sdtp::send_command(b"E_WC", stream).await;
             }
         }
-        //sdtp::send_command(&b"R_OK".to_owned(), &mut stream).await;
+        ConnectionState::CsConnected
     }
 }
 
@@ -158,7 +170,13 @@ async fn main() {
         match connection {
             Ok(connection_result) => {
                 let socket_arc = arcs.clone();
-                tokio::spawn(TcpSocket::process_connection(connection_result, socket_arc));
+                println!("Connected: {}", &connection_result.1);
+                let spawnpeer = connection_result.1.clone();
+                tokio::spawn(async move {TcpSocket::process_connection(
+                    connection_result.0,
+                    socket_arc,
+                ).await;
+                println!("Disconnecred : {}", spawnpeer);});
             }
             Err(e) => {
                 println!("Connection is not established, Error : {e}");

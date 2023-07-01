@@ -32,20 +32,29 @@ pub async fn send_command(data: &[u8; 4], stream: &mut TcpStream) -> bool {
     }
 }
 
-pub async fn read_command(stream: &mut TcpStream) -> String {
+pub async fn read_command(stream: &mut TcpStream) -> Option<String> {
     let mut buf = [0u8; 4];
 
-    let _ = stream.readable().await;
+    let rb = stream.readable().await;
+
+    match rb {
+        Ok(_) => {},
+        Err(e) => {println!("ERR: {}",e); return None;},
+    }
 
     let read_result = stream.try_read(&mut buf);
 
     match read_result {
-        Err(e) => e.to_string(),
+        Err(e) => {
+            println!("{e}");
+            if e.to_string() == "operation would block".to_string() { return Some("placeholder".to_string());};
+            None
+        },
         Ok(len) => {
             if len == 4 {
-                String::from_utf8(Vec::from(buf)).unwrap_or("Encoding error. Use UTF-8.".to_owned())
+                Some(String::from_utf8(Vec::from(buf)).unwrap_or("Encoding error. Use UTF-8.".to_owned()))
             } else {
-                "CMD LENGTH ERR. Expected 4 bytes len".to_string()
+                Some("CMD LENGTH ERR. Expected 4 bytes len".to_string())
             }
         }
     }
