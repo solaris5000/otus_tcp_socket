@@ -11,8 +11,11 @@ impl SocketServer {
     {
         let temp = TcpListener::bind(addr).await;
         match temp {
-            Err(e) => {println!("Server starting error. Terminating program.\n{e}"); None},
-            Ok(ok) => {Some(SocketServer { tcp: ok })},
+            Err(e) => {
+                println!("Server starting error. Terminating program.\n{e}");
+                None
+            }
+            Ok(ok) => Some(SocketServer { tcp: ok }),
         }
     }
 }

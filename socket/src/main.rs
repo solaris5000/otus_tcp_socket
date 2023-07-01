@@ -1,7 +1,7 @@
 use sdtp::server::SocketServer;
-use tokio::sync::RwLock;
-use tokio::net::TcpStream;
 use std::sync::Arc;
+use tokio::net::TcpStream;
+use tokio::sync::RwLock;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -25,61 +25,61 @@ impl TcpSocket {
         let temp = SocketServer::start_server("127.0.0.1:10010").await;
 
         match temp {
-            None => { panic!("There is no free port for this socket server.")},
-            Some(ok) => {TcpSocket{tcp: ok}}
+            None => {
+                panic!("There is no free port for this socket server.")
+            }
+            Some(ok) => TcpSocket { tcp: ok },
         }
     }
 
-    pub async fn accept(&self) -> Result<(tokio::net::TcpStream, std::net::SocketAddr), std::io::Error> {
+    pub async fn accept(
+        &self,
+    ) -> Result<(tokio::net::TcpStream, std::net::SocketAddr), std::io::Error> {
         self.tcp.tcp.accept().await
     }
 
-    pub async fn process_connection(connection : (tokio::net::TcpStream, std::net::SocketAddr), guard: Arc<RwLock<Socket>>) {
-            let mut stream = connection.0;
-            let peer = connection.1;
-            println!("Connected {}", &peer);
+    pub async fn process_connection(
+        connection: (tokio::net::TcpStream, std::net::SocketAddr),
+        guard: Arc<RwLock<Socket>>,
+    ) {
+        let mut stream = connection.0;
+        let peer = connection.1;
+        println!("Connected {}", &peer);
 
-            Self::scan_command(guard, &mut stream).await;
+        Self::scan_command(guard, &mut stream).await;
     }
 
-    async fn scan_command(guard: Arc<RwLock<Socket>>, mut stream: &mut TcpStream) {
+    async fn scan_command(guard: Arc<RwLock<Socket>>, stream: &mut TcpStream) {
         let socket = guard.as_ref();
 
-        let buf = sdtp::read_command(&mut stream).await;
+        let buf = sdtp::read_command(stream).await;
         println!("CMD: {}", &buf);
         match &buf[..] {
             "powr" => {
                 let socket = socket.read().await;
-                sdtp::send_command(&b"F32D".to_owned(), &mut stream).await;
+                sdtp::send_command(b"F32D", stream).await;
                 if socket.enabled {
-                    sdtp::send_command(&socket.power.to_be_bytes(), &mut stream).await;
+                    sdtp::send_command(&socket.power.to_be_bytes(), stream).await;
                 } else {
-                    sdtp::send_command(&0f32.to_be_bytes(), &mut stream).await;
+                    sdtp::send_command(&0f32.to_be_bytes(), stream).await;
                 }
             }
             "stat" => {
                 let socket = socket.read().await;
-                sdtp::send_command(
-                    if socket.enabled {
-                        &b"ebld"
-                    } else {
-                        &b"dbld"
-                    },
-                    &mut stream,
-                ).await;
+                sdtp::send_command(if socket.enabled { b"ebld" } else { b"dbld" }, stream).await;
             }
             "enbl" => {
                 let mut socket = socket.write().await;
                 socket.enabled = true;
-                sdtp::send_command(&b"enbl".to_owned(), &mut stream).await;
+                sdtp::send_command(b"enbl", stream).await;
             }
             "dsbl" => {
                 let mut socket = socket.write().await;
                 socket.enabled = false;
-                sdtp::send_command(&b"dsbl".to_owned(), &mut stream).await;
+                sdtp::send_command(b"dsbl", stream).await;
             }
             _ => {
-                sdtp::send_command(&b"E_WC".to_owned(), &mut stream).await;
+                sdtp::send_command(b"E_WC", stream).await;
             }
         }
         //sdtp::send_command(&b"R_OK".to_owned(), &mut stream).await;
@@ -144,7 +144,6 @@ impl Socket {
     }
 }
 
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let server = TcpSocket::new().await;
@@ -160,8 +159,10 @@ async fn main() {
             Ok(connection_result) => {
                 let socket_arc = arcs.clone();
                 tokio::spawn(TcpSocket::process_connection(connection_result, socket_arc));
-            },
-            Err(e) => {println!("Connection is not established, Error : {e}");}
+            }
+            Err(e) => {
+                println!("Connection is not established, Error : {e}");
+            }
         }
     }
 }
