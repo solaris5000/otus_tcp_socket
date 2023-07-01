@@ -1,7 +1,7 @@
 use sdtp::server::SocketServer;
-use std::sync::RwLock;
-use std::thread;
-use std::{net::TcpStream, sync::Arc};
+use tokio::sync::RwLock;
+use tokio::net::TcpStream;
+use std::sync::Arc;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -16,71 +16,73 @@ pub struct Socket {
 }
 
 pub struct TcpSocket {
-    pub tcp: Option<SocketServer>,
+    pub tcp: SocketServer,
 }
+
 #[allow(clippy::new_without_default)]
 impl TcpSocket {
-    pub fn new() -> TcpSocket {
-        TcpSocket {
-            tcp: (Some(SocketServer::start_server("127.0.0.1:10001"))),
+    pub async fn new() -> TcpSocket {
+        let temp = SocketServer::start_server("127.0.0.1:10010").await;
+
+        match temp {
+            None => { panic!("There is no free port for this socket server.")},
+            Some(ok) => {TcpSocket{tcp: ok}}
         }
     }
 
-    pub fn listen(&mut self) -> impl Iterator<Item = TcpStream> + '_ {
-        match &self.tcp {
-            None => {
-                panic!("there is no tcp server")
-            }
-            Some(ss) => ss.tcp.incoming().map(|s| match s {
-                Ok(s) => {
-                    println!("Some command has been given");
-                    s
-                }
-                Err(e) => panic!("err {:?}", e),
-            }),
-        }
+    pub async fn accept(&self) -> Result<(tokio::net::TcpStream, std::net::SocketAddr), std::io::Error> {
+        self.tcp.tcp.accept().await
     }
 
-    fn scan_command(guard: Arc<RwLock<Socket>>, mut stream: &mut TcpStream) {
+    pub async fn process_connection(connection : (tokio::net::TcpStream, std::net::SocketAddr), guard: Arc<RwLock<Socket>>) {
+            let mut stream = connection.0;
+            let peer = connection.1;
+            println!("Connected {}", &peer);
+
+            Self::scan_command(guard, &mut stream).await;
+    }
+
+    async fn scan_command(guard: Arc<RwLock<Socket>>, mut stream: &mut TcpStream) {
         let socket = guard.as_ref();
-        let buf = sdtp::read_command(&mut stream);
+
+        let buf = sdtp::read_command(&mut stream).await;
         println!("CMD: {}", &buf);
         match &buf[..] {
             "powr" => {
-                let socket = socket.read().unwrap();
-                sdtp::send_command(b"F32D".to_owned(), &mut stream);
+                let socket = socket.read().await;
+                sdtp::send_command(&b"F32D".to_owned(), &mut stream).await;
                 if socket.enabled {
-                    sdtp::send_command(socket.power.to_be_bytes(), &mut stream);
+                    sdtp::send_command(&socket.power.to_be_bytes(), &mut stream).await;
                 } else {
-                    sdtp::send_command(0f32.to_be_bytes(), &mut stream);
+                    sdtp::send_command(&0f32.to_be_bytes(), &mut stream).await;
                 }
             }
             "stat" => {
-                let socket = socket.read().unwrap();
+                let socket = socket.read().await;
                 sdtp::send_command(
                     if socket.enabled {
-                        b"ebld".to_owned()
+                        &b"ebld"
                     } else {
-                        b"dbld".to_owned()
+                        &b"dbld"
                     },
                     &mut stream,
-                );
+                ).await;
             }
             "enbl" => {
-                let mut socket = socket.write().unwrap();
+                let mut socket = socket.write().await;
                 socket.enabled = true;
-                sdtp::send_command(b"enbl".to_owned(), &mut stream);
+                sdtp::send_command(&b"enbl".to_owned(), &mut stream).await;
             }
             "dsbl" => {
-                let mut socket = socket.write().unwrap();
+                let mut socket = socket.write().await;
                 socket.enabled = false;
-                sdtp::send_command(b"dsbl".to_owned(), &mut stream);
+                sdtp::send_command(&b"dsbl".to_owned(), &mut stream).await;
             }
             _ => {
-                sdtp::send_command(b"E_WC".to_owned(), &mut stream);
+                sdtp::send_command(&b"E_WC".to_owned(), &mut stream).await;
             }
         }
-        sdtp::send_command(b"R_OK".to_owned(), &mut stream);
+        //sdtp::send_command(&b"R_OK".to_owned(), &mut stream).await;
     }
 }
 
@@ -110,8 +112,7 @@ impl Socket {
             amperage: (0.0),
             power: (12.5),
             enabled: (false),
-            address: "127.0.0.1:10001".to_owned(),
-            //  tcp: Some(SocketServer::start_server("127.0.0.1:10001")),
+            address: "127.0.0.1:10010".to_owned(),
         }
     }
     pub fn _init(&mut self) {
@@ -143,20 +144,24 @@ impl Socket {
     }
 }
 
-fn main() {
-    let mut sa = TcpSocket::new();
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let server = TcpSocket::new().await;
 
     let a = Socket::new("MySocket");
     let arcs = Arc::new(RwLock::new(a));
-    println!("{}", arcs.read().unwrap());
+    println!("{}", arcs.read().await);
 
-    let stream = sa.listen();
+    loop {
+        let connection = server.accept().await;
 
-    for mut msg in stream {
-        let acc = arcs.clone();
-        thread::spawn(move || {
-            TcpSocket::scan_command(acc, &mut msg);
-            println!("doin soming");
-        });
+        match connection {
+            Ok(connection_result) => {
+                let socket_arc = arcs.clone();
+                tokio::spawn(TcpSocket::process_connection(connection_result, socket_arc));
+            },
+            Err(e) => {println!("Connection is not established, Error : {e}");}
+        }
     }
 }

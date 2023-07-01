@@ -1,16 +1,19 @@
-use std::net::{TcpListener, ToSocketAddrs};
+use tokio::net::{TcpListener, ToSocketAddrs};
 
 pub struct SocketServer {
     pub tcp: TcpListener,
 }
 
 impl SocketServer {
-    pub fn start_server<Addrs>(addr: Addrs) -> SocketServer
+    pub async fn start_server<Addrs>(addr: Addrs) -> Option<SocketServer>
     where
         Addrs: ToSocketAddrs,
     {
-        let temp = TcpListener::bind(addr);
-        SocketServer { tcp: temp.unwrap() }
+        let temp = TcpListener::bind(addr).await;
+        match temp {
+            Err(e) => {println!("Server starting error. Terminating program.\n{e}"); None},
+            Ok(ok) => {Some(SocketServer { tcp: ok })},
+        }
     }
 }
 
