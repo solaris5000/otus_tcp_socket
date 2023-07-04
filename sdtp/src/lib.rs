@@ -1,5 +1,6 @@
 //описать методы обмена информации между розеткой и клиентом
 use tokio::net::TcpStream;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 //зашарить реализацию сервера розетки, клиента
 pub mod client;
@@ -35,19 +36,11 @@ pub async fn send_command(data: &[u8; 4], stream: &mut TcpStream) -> bool {
 pub async fn read_command(stream: &mut TcpStream) -> Option<String> {
     let mut buf = [0u8; 4];
 
-    let rb = stream.readable().await;
-
-    match rb {
-        Ok(_) => {},
-        Err(e) => {println!("ERR: {}",e); return None;},
-    }
-
-    let read_result = stream.try_read(&mut buf);
+    let read_result =  stream.read_exact(&mut buf).await;
 
     match read_result {
         Err(e) => {
-            println!("{e}");
-            if e.to_string() == "operation would block".to_string() { return Some("placeholder".to_string());};
+            println!("Read command error: {e}");
             None
         },
         Ok(len) => {

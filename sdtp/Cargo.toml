@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1.2.7"
-tokio = { version = "1.15.0", features = ["net", "macros", "rt", "fs", "sync", "time"] }
+tokio = { version = "1.15.0", features = ["net", "macros", "rt", "fs", "sync", "time", "io-util"] }
